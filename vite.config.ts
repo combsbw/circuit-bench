@@ -12,7 +12,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'RAM Circuit Bench',
+        name: 'Circuit Bench',
         short_name: 'Circuit Bench',
         description:
           'Offline-first circuit design, visualization, and troubleshooting',

@@ -1,11 +1,87 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircuitCanvas } from './components/CircuitCanvas'
 import { ComponentPalette, type PaletteItem } from './components/ComponentPalette'
+import { DocumentMenu } from './components/DocumentMenu'
+import { ModePanel } from './components/ModePanel'
 import { Toolbar } from './components/Toolbar'
+import { usePwaInstall } from './hooks/usePwaInstall'
+import {
+  documentFromSession,
+  exportFilename,
+  fingerprint,
+  freshSession,
+  sessionFromDocument,
+  serializeForExport,
+} from './store/documentUtils'
+import {
+  getDesign,
+  listDesigns,
+  loadSession,
+  putDesign,
+  saveSession,
+} from './store/persistence'
+import type { AppMode, ModeProgress, SessionState } from './store/types'
+import { setNodeSeq } from './utils/nodeIds'
+import { downloadJson } from './utils/download'
 import './App.css'
+
+function isDirty(session: SessionState): boolean {
+  const fp = fingerprint(
+    session.graph,
+    session.mode,
+    session.buildProgress,
+    session.troubleshootProgress,
+  )
+  return session.savedFingerprint !== fp
+}
 
 function App() {
   const addPartRef = useRef<((item: PaletteItem) => void) | null>(null)
+  const [session, setSession] = useState<SessionState>(() => freshSession())
+  const [graphKey, setGraphKey] = useState('initial')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [designs, setDesigns] = useState<Awaited<ReturnType<typeof listDesigns>>>(
+    [],
+  )
+  const [saving, setSaving] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { canInstall, showIosHint, install } = usePwaInstall()
+
+  const dirty = useMemo(() => isDirty(session), [session])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const [saved, catalog] = await Promise.all([loadSession(), listDesigns()])
+      if (cancelled) return
+      if (saved) {
+        setNodeSeq(saved.graph.nodeSeq)
+        setSession(saved)
+        setGraphKey(saved.documentId ?? `session-${saved.updatedAt}`)
+      }
+      setDesigns(catalog)
+      setHydrated(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      const payload: SessionState = {
+        ...session,
+        updatedAt: new Date().toISOString(),
+      }
+      void saveSession(payload)
+    }, 700)
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [session, hydrated])
 
   const handleRegisterAdd = useCallback((fn: (item: PaletteItem) => void) => {
     addPartRef.current = fn
@@ -15,13 +91,162 @@ function App() {
     addPartRef.current?.(item)
   }, [])
 
+  const applySession = useCallback((next: SessionState) => {
+    setNodeSeq(next.graph.nodeSeq)
+    setSession(next)
+    setGraphKey(next.documentId ?? `draft-${Date.now()}`)
+  }, [])
+
+  const confirmIfDirty = useCallback((): boolean => {
+    if (!dirty) return true
+    return window.confirm(
+      'Discard unsaved changes to the current design?',
+    )
+  }, [dirty])
+
+  const refreshDesigns = useCallback(async () => {
+    setDesigns(await listDesigns())
+  }, [])
+
+  const handleGraphChange = useCallback(
+    (graph: SessionState['graph']) => {
+      setSession((s) => ({ ...s, graph }))
+    },
+    [],
+  )
+
+  const handleModeChange = useCallback((mode: AppMode) => {
+    setSession((s) => ({ ...s, mode }))
+  }, [])
+
+  const handleBuildChange = useCallback((buildProgress: ModeProgress) => {
+    setSession((s) => ({ ...s, buildProgress }))
+  }, [])
+
+  const handleTroubleshootChange = useCallback(
+    (troubleshootProgress: ModeProgress) => {
+      setSession((s) => ({ ...s, troubleshootProgress }))
+    },
+    [],
+  )
+
+  const persistNamed = useCallback(
+    async (name: string, overwrite: boolean) => {
+      setSaving(true)
+      try {
+        const byName = designs.find(
+          (d) => d.name.toLowerCase() === name.toLowerCase(),
+        )
+        let existing = byName
+        if (!existing && overwrite && session.documentId) {
+          existing = await getDesign(session.documentId)
+        }
+        const doc = documentFromSession(session, name, existing)
+        await putDesign(doc)
+        const next = sessionFromDocument(doc)
+        setSession(next)
+        await refreshDesigns()
+        return next
+      } finally {
+        setSaving(false)
+      }
+    },
+    [session, designs, refreshDesigns],
+  )
+
+  const handleQuickSave = useCallback(() => {
+    if (session.documentName) {
+      void persistNamed(session.documentName, true)
+      return
+    }
+    setMenuOpen(true)
+  }, [session.documentName, persistNamed])
+
+  const handleSave = useCallback(
+    async (name: string, overwrite: boolean) => {
+      await persistNamed(name, overwrite)
+    },
+    [persistNamed],
+  )
+
+  const handleLoad = useCallback(
+    async (id: string) => {
+      if (!confirmIfDirty()) return
+      const doc = await getDesign(id)
+      if (!doc) return
+      applySession(sessionFromDocument(doc))
+      setMenuOpen(false)
+    },
+    [applySession, confirmIfDirty],
+  )
+
+  const handleNew = useCallback(() => {
+    if (!confirmIfDirty()) return
+    const next = freshSession()
+    applySession(next)
+    setMenuOpen(false)
+  }, [applySession, confirmIfDirty])
+
+  const handleExport = useCallback(() => {
+    const doc = serializeForExport(session)
+    downloadJson(exportFilename(session.documentName), doc)
+  }, [session])
+
+  if (!hydrated) {
+    return (
+      <div className="app app--loading">
+        <p className="app__loading">Loading Circuit Bench…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
-      <Toolbar mode="design" />
+      <Toolbar
+        mode={session.mode}
+        onModeChange={handleModeChange}
+        designLabel={session.documentName}
+        isDirty={dirty}
+        onOpenMenu={() => setMenuOpen(true)}
+        onQuickSave={handleQuickSave}
+        onNew={handleNew}
+        onExport={handleExport}
+      />
       <main className="app__main">
-        <ComponentPalette onAddPart={handleAddFromPalette} />
-        <CircuitCanvas onRegisterAdd={handleRegisterAdd} />
+        {session.mode === 'design' ? (
+          <ComponentPalette onAddPart={handleAddFromPalette} />
+        ) : (
+          <ModePanel
+            mode={session.mode}
+            buildProgress={session.buildProgress}
+            troubleshootProgress={session.troubleshootProgress}
+            onBuildChange={handleBuildChange}
+            onTroubleshootChange={handleTroubleshootChange}
+          />
+        )}
+        <CircuitCanvas
+          graphKey={graphKey}
+          initialNodes={session.graph.nodes}
+          initialEdges={session.graph.edges}
+          viewport={session.graph.viewport}
+          onGraphChange={handleGraphChange}
+          onRegisterAdd={handleRegisterAdd}
+        />
       </main>
+      <DocumentMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        designs={designs}
+        currentName={session.documentName}
+        saving={saving}
+        onNew={handleNew}
+        onSave={(name, overwrite) => void handleSave(name, overwrite)}
+        onLoad={(id) => void handleLoad(id)}
+        onExport={handleExport}
+        canInstall={canInstall}
+        onInstall={() => void install()}
+        showIosHint={showIosHint}
+      />
     </div>
   )
 }

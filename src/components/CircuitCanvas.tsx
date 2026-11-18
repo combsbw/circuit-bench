@@ -12,10 +12,13 @@ import {
   type Edge,
   type Node,
   type OnConnect,
+  type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useRef } from 'react'
 import { PALETTE_DRAG_TYPE } from '../types/circuit'
+import type { ViewportState } from '../store/types'
+import { getNodeSeq, nextNodeId, syncNodeSeqFromNodes } from '../utils/nodeIds'
 import {
   PlaceholderNode,
   type PlaceholderNodeData,
@@ -23,13 +26,6 @@ import {
 import type { PaletteItem } from './ComponentPalette'
 
 const nodeTypes = { placeholder: PlaceholderNode }
-
-let nodeSeq = 0
-
-function nextNodeId() {
-  nodeSeq += 1
-  return `part-${nodeSeq}`
-}
 
 function itemToNode(
   item: PaletteItem,
@@ -48,16 +44,60 @@ function itemToNode(
 }
 
 type CircuitCanvasInnerProps = {
+  initialNodes: Node<PlaceholderNodeData>[]
+  initialEdges: Edge[]
+  viewport: ViewportState
+  onGraphChange: (graph: {
+    nodes: Node<PlaceholderNodeData>[]
+    edges: Edge[]
+    viewport: ViewportState
+    nodeSeq: number
+  }) => void
   onRegisterAdd: (fn: (item: PaletteItem) => void) => void
 }
 
-function CircuitCanvasInner({ onRegisterAdd }: CircuitCanvasInnerProps) {
+function CircuitCanvasInner({
+  initialNodes,
+  initialEdges,
+  viewport,
+  onGraphChange,
+  onRegisterAdd,
+}: CircuitCanvasInnerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<PlaceholderNodeData>>(
-    [],
+    initialNodes,
   )
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
-  const { screenToFlowPosition } = useReactFlow()
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
+  const { screenToFlowPosition, setViewport } = useReactFlow()
+  const viewportRef = useRef(viewport)
+
+  useEffect(() => {
+    syncNodeSeqFromNodes(initialNodes)
+    setViewport(viewport)
+    viewportRef.current = viewport
+    // Only on mount — graphKey remounts when loading a different design.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const emitGraph = useCallback(
+    (
+      nextNodes: Node<PlaceholderNodeData>[],
+      nextEdges: Edge[],
+      nextViewport: ViewportState,
+    ) => {
+      onGraphChange({
+        nodes: nextNodes,
+        edges: nextEdges,
+        viewport: nextViewport,
+        nodeSeq: getNodeSeq(),
+      })
+    },
+    [onGraphChange],
+  )
+
+  useEffect(() => {
+    emitGraph(nodes, edges, viewportRef.current)
+  }, [nodes, edges, emitGraph])
 
   useEffect(() => {
     onRegisterAdd((item) => {
@@ -96,6 +136,14 @@ function CircuitCanvasInner({ onRegisterAdd }: CircuitCanvasInnerProps) {
     [screenToFlowPosition, setNodes],
   )
 
+  const onMoveEnd = useCallback(
+    (_event: MouseEvent | TouchEvent | null, vp: Viewport) => {
+      viewportRef.current = { x: vp.x, y: vp.y, zoom: vp.zoom }
+      emitGraph(nodes, edges, viewportRef.current)
+    },
+    [emitGraph, nodes, edges],
+  )
+
   return (
     <div
       ref={wrapperRef}
@@ -109,8 +157,9 @@ function CircuitCanvasInner({ onRegisterAdd }: CircuitCanvasInnerProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onMoveEnd={onMoveEnd}
         nodeTypes={nodeTypes}
-        fitView
+        defaultViewport={viewport}
         snapToGrid
         snapGrid={[16, 16]}
         connectionLineStyle={{ stroke: '#5b9fd4', strokeWidth: 2 }}
@@ -134,14 +183,14 @@ function CircuitCanvasInner({ onRegisterAdd }: CircuitCanvasInnerProps) {
   )
 }
 
-type CircuitCanvasProps = {
-  onRegisterAdd: (fn: (item: PaletteItem) => void) => void
+export type CircuitCanvasProps = CircuitCanvasInnerProps & {
+  graphKey: string
 }
 
-export function CircuitCanvas({ onRegisterAdd }: CircuitCanvasProps) {
+export function CircuitCanvas({ graphKey, ...props }: CircuitCanvasProps) {
   return (
-    <ReactFlowProvider>
-      <CircuitCanvasInner onRegisterAdd={onRegisterAdd} />
+    <ReactFlowProvider key={graphKey}>
+      <CircuitCanvasInner {...props} />
     </ReactFlowProvider>
   )
 }

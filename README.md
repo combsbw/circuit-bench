@@ -1,4 +1,4 @@
-# RAM Circuit Bench
+# Circuit Bench
 
 Offline-first progressive web app for circuit design, visualization, and troubleshooting. Optimized for iOS **Add to Home Screen** and deployed from this repository via **GitHub Pages**.
 
