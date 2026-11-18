@@ -60,6 +60,7 @@ function App() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [pinoutCatalogId, setPinoutCatalogId] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { canInstall, showIosHint, install } = usePwaInstall()
 
@@ -74,7 +75,11 @@ function App() {
         setNodeSeq(saved.graph.nodeSeq)
         setSession({
           ...saved,
-          measureState: saved.measureState ?? { probeA: null, probeB: null },
+          measureState: {
+            probeA: saved.measureState?.probeA ?? null,
+            probeB: saved.measureState?.probeB ?? null,
+            dmmTool: saved.measureState?.dmmTool ?? 'resistance',
+          },
         })
         setGraphKey(saved.documentId ?? `session-${saved.updatedAt}`)
       }
@@ -206,17 +211,23 @@ function App() {
 
   const handleProbePick = useCallback((nodeId: string) => {
     setSession((s) => {
-      const { probeA, probeB } = s.measureState
+      const { probeA, probeB, dmmTool } = s.measureState
+      if (dmmTool === 'dc_voltage') {
+        return {
+          ...s,
+          measureState: { ...s.measureState, probeA: { nodeId }, probeB: null },
+        }
+      }
       if (!probeA || (probeA && probeB)) {
         return {
           ...s,
-          measureState: { probeA: { nodeId }, probeB: null },
+          measureState: { ...s.measureState, probeA: { nodeId }, probeB: null },
         }
       }
       if (probeA.nodeId === nodeId) return s
       return {
         ...s,
-        measureState: { probeA, probeB: { nodeId } },
+        measureState: { ...s.measureState, probeA, probeB: { nodeId } },
       }
     })
   }, [])
@@ -340,10 +351,13 @@ function App() {
     ) : (
       <ModePanel
         mode={session.mode}
+        nodes={session.graph.nodes}
+        edges={session.graph.edges}
         buildProgress={session.buildProgress}
         troubleshootProgress={session.troubleshootProgress}
         onBuildChange={handleBuildChange}
         onTroubleshootChange={handleTroubleshootChange}
+        onFocusNode={(id) => setFocusNodeId(`${id}#${Date.now()}`)}
       />
     )
 
@@ -377,6 +391,7 @@ function App() {
             onProbePick={handleProbePick}
             onWireAdded={handleWireAdded}
             onCatalogPlaced={handleCatalogPlaced}
+            focusNodeId={focusNodeId}
           />
           {session.mode === 'design' || session.mode === 'build' ? (
             <InspectorDrawer

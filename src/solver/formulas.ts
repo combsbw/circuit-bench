@@ -53,6 +53,21 @@ function parseScaled(s: string, unitLetter: string): number | null {
   return base * pre
 }
 
+export function formatCapacitance(farads: number): string {
+  if (farads >= 1e-3) return `${(farads * 1e3).toFixed(2)} mF`
+  if (farads >= 1e-6) return `${(farads * 1e6).toFixed(2)} µF`
+  if (farads >= 1e-9) return `${(farads * 1e9).toFixed(2)} nF`
+  if (farads >= 1e-12) return `${(farads * 1e12).toFixed(2)} pF`
+  return `${farads.toExponential(2)} F`
+}
+
+export function formatInductance(henries: number): string {
+  if (henries >= 1) return `${henries.toFixed(2)} H`
+  if (henries >= 1e-3) return `${(henries * 1e3).toFixed(2)} mH`
+  if (henries >= 1e-6) return `${(henries * 1e6).toFixed(2)} µH`
+  return `${henries.toExponential(2)} H`
+}
+
 export function formatResistance(ohms: number): string {
   if (ohms >= 1e6) return `${(ohms / 1e6).toFixed(2)} MΩ`
   if (ohms >= 1e3) return `${(ohms / 1e3).toFixed(2)} kΩ`

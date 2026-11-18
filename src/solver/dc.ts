@@ -174,7 +174,7 @@ function reduceTree(
   return 1 / vProbe
 }
 
-function solveLinear(a: number[][], b: number[]): number[] | null {
+export function solveLinear(a: number[][], b: number[]): number[] | null {
   const n = b.length
   const aug = a.map((row, i) => [...row, b[i]!])
 
@@ -199,7 +199,122 @@ function solveLinear(a: number[][], b: number[]): number[] | null {
   return aug.map((row) => row[n]!)
 }
 
-export function dividerVoltage(
+const MAX_MNA_RESISTORS = 48
+const MAX_MNA_SOURCES = 8
+
+export interface DcOpPoint {
+  voltages: Map<NetId, number>
+  groundNet: NetId
+  confidence: Confidence
+  detail: string
+}
+
+/** Modified nodal DC: resistors + ideal voltage sources; C/L open; ground at 0 V. */
+export function solveDcOpPoint(graph: CircuitGraph): DcOpPoint | null {
+  const groundNet = [...graph.groundNets][0]
+  if (!groundNet) return null
+
+  const resistors = graph.branches.filter(
+    (b) => b.kind === 'resistor' && b.resistance != null && b.resistance > 0,
+  )
+  const sources = graph.branches.filter(
+    (b) => b.kind === 'voltage_source' && b.voltage != null,
+  )
+
+  if (resistors.length > MAX_MNA_RESISTORS) return null
+  if (sources.length > MAX_MNA_SOURCES) return null
+  if (resistors.length === 0 && sources.length === 0) return null
+
+  const nets = new Set<NetId>()
+  for (const b of [...resistors, ...sources]) {
+    nets.add(b.netA)
+    nets.add(b.netB)
+  }
+  if (!nets.has(groundNet)) nets.add(groundNet)
+
+  const netList = [...nets].filter((n) => n !== groundNet)
+  if (netList.length === 0 && sources.length === 0) {
+    const v = new Map<NetId, number>()
+    v.set(groundNet, 0)
+    return {
+      voltages: v,
+      groundNet,
+      confidence: 'exact',
+      detail: 'Ground only.',
+    }
+  }
+
+  const idx = new Map(netList.map((n, i) => [n, i]))
+  const nV = netList.length
+  const nS = sources.length
+  const dim = nV + nS
+  const matrix = Array.from({ length: dim }, () => Array(dim).fill(0))
+  const rhs = Array(dim).fill(0)
+
+  function stampResistor(netA: NetId, netB: NetId, resistance: number): void {
+    const gi = 1 / resistance
+    const ia = netA === groundNet ? null : idx.get(netA)
+    const ib = netB === groundNet ? null : idx.get(netB)
+    if (ia != null) {
+      matrix[ia]![ia]! += gi
+      if (ib != null) {
+        matrix[ia]![ib]! -= gi
+        matrix[ib]![ia]! -= gi
+        matrix[ib]![ib]! += gi
+      }
+    } else if (ib != null) {
+      matrix[ib]![ib]! += gi
+    }
+  }
+
+  for (const br of resistors) {
+    stampResistor(br.netA, br.netB, br.resistance!)
+  }
+
+  sources.forEach((src, sIdx) => {
+    const iCol = nV + sIdx
+    const pos = src.netB
+    const neg = src.netA
+    const ip = pos === groundNet ? null : idx.get(pos)
+    const in_ = neg === groundNet ? null : idx.get(neg)
+
+    if (ip != null) {
+      matrix[ip]![iCol]! += 1
+    }
+    if (in_ != null) {
+      matrix[in_]![iCol]! -= 1
+    }
+
+    const constraintRow = nV + sIdx
+    if (ip != null) matrix[constraintRow]![ip]! += 1
+    if (in_ != null) matrix[constraintRow]![in_]! -= 1
+    rhs[constraintRow] = src.voltage!
+  })
+
+  const x = solveLinear(matrix, rhs)
+  if (!x) return null
+
+  const voltages = new Map<NetId, number>()
+  voltages.set(groundNet, 0)
+  netList.forEach((net, i) => voltages.set(net, x[i]!))
+
+  const hasReactive = graph.branches.some(
+    (b) => b.kind === 'capacitor' || b.kind === 'inductor',
+  )
+
+  return {
+    voltages,
+    groundNet,
+    confidence: hasReactive ? 'approximate' : 'exact',
+    detail:
+      sources.length > 0
+        ? `MNA DC (${sources.length} source${sources.length > 1 ? 's' : ''}, ${resistors.length} R).`
+        : `Nodal DC (${resistors.length} resistors).`,
+  }
+}
+
+/** Voltage at a net relative to schematic ground (V). */
+export function voltageAtNet(
   graph: CircuitGraph,
   tapNet: NetId,
 ): { volts: number | null; confidence: Confidence; detail: string } {
@@ -208,10 +323,30 @@ export function dividerVoltage(
     return {
       volts: null,
       confidence: 'unsupported',
-      detail: 'No ground symbol — pick GND reference.',
+      detail: 'No ground symbol — add GND for voltage reference.',
     }
   }
 
+  if (tapNet === gnd) {
+    return { volts: 0, confidence: 'exact', detail: 'Probe on ground net.' }
+  }
+
+  const op = solveDcOpPoint(graph)
+  if (op) {
+    const v = op.voltages.get(tapNet)
+    if (v != null && Number.isFinite(v)) {
+      return { volts: v, confidence: op.confidence, detail: op.detail }
+    }
+  }
+
+  return dividerVoltageTemplate(graph, tapNet)
+}
+
+function dividerVoltageTemplate(
+  graph: CircuitGraph,
+  tapNet: NetId,
+): { volts: number | null; confidence: Confidence; detail: string } {
+  const gnd = [...graph.groundNets][0]!
   const sources = graph.branches.filter(
     (b) => b.kind === 'voltage_source' && b.voltage != null,
   )
@@ -223,11 +358,9 @@ export function dividerVoltage(
     const vSrc = sources[0]!
     const posNet = vSrc.netB
     const negNet = vSrc.netA
-    const r1 = resistors.find((r) =>
-      netsShare(r, posNet, tapNet),
-    )
-    const r2 = resistors.find((r) =>
-      netsShare(r, tapNet, negNet) || netsShare(r, tapNet, gnd),
+    const r1 = resistors.find((r) => netsShare(r, posNet, tapNet))
+    const r2 = resistors.find(
+      (r) => netsShare(r, tapNet, negNet) || netsShare(r, tapNet, gnd),
     )
     if (r1 && r2 && r1 !== r2) {
       const R1 = r1.resistance!
@@ -241,7 +374,7 @@ export function dividerVoltage(
         return {
           volts: vOut,
           confidence: 'exact',
-          detail: 'Classic divider from source to tap node.',
+          detail: 'Classic divider template (MNA unavailable).',
         }
       }
     }
@@ -250,8 +383,16 @@ export function dividerVoltage(
   return {
     volts: null,
     confidence: 'unsupported',
-    detail: 'Divider voltage needs source + two series R to tap (MNA later).',
+    detail: 'Need resistors + sources solvable by MNA, or a simple divider.',
   }
+}
+
+/** @deprecated Use voltageAtNet — kept for analyze import compatibility. */
+export function dividerVoltage(
+  graph: CircuitGraph,
+  tapNet: NetId,
+): { volts: number | null; confidence: Confidence; detail: string } {
+  return voltageAtNet(graph, tapNet)
 }
 
 function netsShare(b: ComponentBranch, a: NetId, c: NetId): boolean {
