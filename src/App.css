@@ -1,0 +1,234 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
+.app__main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) 1fr;
+  min-height: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 0.65rem 1rem;
+  padding-top: max(0.65rem, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.toolbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.toolbar__logo {
+  font-size: 1.5rem;
+}
+
+.toolbar__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.toolbar__subtitle {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.toolbar__modes {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.toolbar__mode {
+  position: relative;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toolbar__mode--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgb(91 159 212 / 0.12);
+}
+
+.toolbar__mode:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.toolbar__soon {
+  display: block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.palette__heading {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.palette__hint,
+.palette__footer {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.palette__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.palette__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: grab;
+  text-align: left;
+}
+
+.palette__item:active {
+  cursor: grabbing;
+}
+
+.palette__symbol {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  background: rgb(91 159 212 / 0.15);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.palette__name {
+  font-size: 0.9rem;
+}
+
+.canvas {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+
+.canvas__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 1rem;
+  pointer-events: none;
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.canvas__minimap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.circuit-node {
+  min-width: 5.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: center;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}
+
+.circuit-node--selected {
+  border-color: var(--accent);
+}
+
+.circuit-node__symbol {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.circuit-node__label {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.circuit-node__value {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.react-flow__controls button {
+  background: var(--surface);
+  border-color: var(--border);
+  fill: var(--text);
+}
+
+@media (max-width: 640px) {
+  .app__main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .palette {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .palette__list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .palette__footer {
+    display: none;
+  }
+}
