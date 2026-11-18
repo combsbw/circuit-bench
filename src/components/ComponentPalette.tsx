@@ -1,6 +1,6 @@
 import { PALETTE_DRAG_TYPE, type PartKind } from '../types/circuit'
 
-type PaletteItem = {
+export type PaletteItem = {
   kind: PartKind
   label: string
   symbol: string
@@ -9,6 +9,15 @@ type PaletteItem = {
 
 const ITEMS: PaletteItem[] = [
   { kind: 'resistor', label: 'Resistor', symbol: 'R', defaultValue: '10kΩ' },
+  { kind: 'capacitor', label: 'Capacitor', symbol: 'C', defaultValue: '100nF' },
+  { kind: 'inductor', label: 'Inductor', symbol: 'L', defaultValue: '10mH' },
+  { kind: 'ground', label: 'Ground', symbol: '⏚' },
+  {
+    kind: 'voltage_source',
+    label: 'DC source',
+    symbol: 'V',
+    defaultValue: '5V',
+  },
 ]
 
 type ComponentPaletteProps = {
@@ -45,10 +54,8 @@ export function ComponentPalette({ onAddPart }: ComponentPaletteProps) {
         ))}
       </ul>
       <p className="palette__footer">
-        Full symbol library (C, L, op-amp, MOSFET, …) in a later phase.
+        Op-amps, MOSFETs, and catalog parts arrive in later phases.
       </p>
     </aside>
   )
 }
-
-export type { PaletteItem }

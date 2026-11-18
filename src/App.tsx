@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircuitCanvas } from './components/CircuitCanvas'
 import { ComponentPalette, type PaletteItem } from './components/ComponentPalette'
 import { DocumentMenu } from './components/DocumentMenu'
+import { MeasurePanel } from './components/MeasurePanel'
 import { ModePanel } from './components/ModePanel'
 import { Toolbar } from './components/Toolbar'
 import { usePwaInstall } from './hooks/usePwaInstall'
+import type { PlaceholderNodeData } from './components/nodes/CircuitPartNode'
 import {
   documentFromSession,
   exportFilename,
@@ -23,6 +25,7 @@ import {
 import type { AppMode, ModeProgress, SessionState } from './store/types'
 import { setNodeSeq } from './utils/nodeIds'
 import { downloadJson } from './utils/download'
+import type { Node } from '@xyflow/react'
 import './App.css'
 
 function isDirty(session: SessionState): boolean {
@@ -31,6 +34,7 @@ function isDirty(session: SessionState): boolean {
     session.mode,
     session.buildProgress,
     session.troubleshootProgress,
+    session.measureState,
   )
   return session.savedFingerprint !== fp
 }
@@ -45,6 +49,7 @@ function App() {
   )
   const [saving, setSaving] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { canInstall, showIosHint, install } = usePwaInstall()
 
@@ -57,7 +62,10 @@ function App() {
       if (cancelled) return
       if (saved) {
         setNodeSeq(saved.graph.nodeSeq)
-        setSession(saved)
+        setSession({
+          ...saved,
+          measureState: saved.measureState ?? { probeA: null, probeB: null },
+        })
         setGraphKey(saved.documentId ?? `session-${saved.updatedAt}`)
       }
       setDesigns(catalog)
@@ -126,6 +134,64 @@ function App() {
   const handleTroubleshootChange = useCallback(
     (troubleshootProgress: ModeProgress) => {
       setSession((s) => ({ ...s, troubleshootProgress }))
+    },
+    [],
+  )
+
+  const handleMeasureChange = useCallback(
+    (measureState: SessionState['measureState']) => {
+      setSession((s) => ({ ...s, measureState }))
+    },
+    [],
+  )
+
+  const handleProbePick = useCallback((nodeId: string) => {
+    setSession((s) => {
+      const { probeA, probeB } = s.measureState
+      if (!probeA || (probeA && probeB)) {
+        return {
+          ...s,
+          measureState: { probeA: { nodeId }, probeB: null },
+        }
+      }
+      if (probeA.nodeId === nodeId) return s
+      return {
+        ...s,
+        measureState: { probeA, probeB: { nodeId } },
+      }
+    })
+  }, [])
+
+  const handleApplyValues = useCallback(
+    (
+      componentIds: string[],
+      slotToKind: Record<string, 'resistor' | 'capacitor' | 'inductor' | 'voltage_source'>,
+      values: Record<string, string>,
+    ) => {
+      setSession((s) => {
+        const resistors = componentIds.filter((id) => {
+          const node = s.graph.nodes.find((x) => x.id === id)
+          return (node?.data as PlaceholderNodeData).kind === 'resistor'
+        })
+        const nodes = s.graph.nodes.map((node) => {
+          const n = node as Node<PlaceholderNodeData>
+          if (!componentIds.includes(n.id)) return node
+          let nextValue = n.data.value
+          if (values.R1 && resistors[0] === n.id) nextValue = values.R1
+          if (values.R2 && resistors[1] === n.id) nextValue = values.R2
+          for (const [slot, v] of Object.entries(values)) {
+            const expected = slotToKind[slot]
+            if (expected && n.data.kind === expected && slot !== 'R1' && slot !== 'R2') {
+              nextValue = v
+            }
+          }
+          return {
+            ...node,
+            data: { ...n.data, value: nextValue },
+          }
+        })
+        return { ...s, graph: { ...s.graph, nodes: nodes as typeof s.graph.nodes } }
+      })
     },
     [],
   )
@@ -200,6 +266,28 @@ function App() {
     )
   }
 
+  const sidePanel =
+    session.mode === 'design' ? (
+      <ComponentPalette onAddPart={handleAddFromPalette} />
+    ) : session.mode === 'measure' ? (
+      <MeasurePanel
+        nodes={session.graph.nodes}
+        edges={session.graph.edges}
+        measure={session.measureState}
+        selectedNodeIds={selectedNodeIds}
+        onMeasureChange={handleMeasureChange}
+        onApplyValues={handleApplyValues}
+      />
+    ) : (
+      <ModePanel
+        mode={session.mode}
+        buildProgress={session.buildProgress}
+        troubleshootProgress={session.troubleshootProgress}
+        onBuildChange={handleBuildChange}
+        onTroubleshootChange={handleTroubleshootChange}
+      />
+    )
+
   return (
     <div className="app">
       <Toolbar
@@ -213,24 +301,19 @@ function App() {
         onExport={handleExport}
       />
       <main className="app__main">
-        {session.mode === 'design' ? (
-          <ComponentPalette onAddPart={handleAddFromPalette} />
-        ) : (
-          <ModePanel
-            mode={session.mode}
-            buildProgress={session.buildProgress}
-            troubleshootProgress={session.troubleshootProgress}
-            onBuildChange={handleBuildChange}
-            onTroubleshootChange={handleTroubleshootChange}
-          />
-        )}
+        {sidePanel}
         <CircuitCanvas
           graphKey={graphKey}
+          appMode={session.mode}
           initialNodes={session.graph.nodes}
           initialEdges={session.graph.edges}
           viewport={session.graph.viewport}
+          probeA={session.measureState.probeA}
+          probeB={session.measureState.probeB}
           onGraphChange={handleGraphChange}
           onRegisterAdd={handleRegisterAdd}
+          onSelectionChange={setSelectedNodeIds}
+          onProbePick={handleProbePick}
         />
       </main>
       <DocumentMenu

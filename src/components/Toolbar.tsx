@@ -13,6 +13,7 @@ type ToolbarProps = {
 
 const MODES: { id: AppMode; label: string }[] = [
   { id: 'design', label: 'Design' },
+  { id: 'measure', label: 'Measure' },
   { id: 'build', label: 'Build' },
   { id: 'troubleshoot', label: 'Troubleshoot' },
 ]

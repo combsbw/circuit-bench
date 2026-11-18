@@ -1,7 +1,20 @@
 import type { Edge, Node } from '@xyflow/react'
-import type { PlaceholderNodeData } from '../components/nodes/PlaceholderNode'
+import type { PlaceholderNodeData } from '../components/nodes/CircuitPartNode'
 
-export type AppMode = 'design' | 'build' | 'troubleshoot'
+export type AppMode = 'design' | 'build' | 'troubleshoot' | 'measure'
+
+export interface ProbePoint {
+  nodeId: string
+}
+
+export interface MeasureState {
+  probeA: ProbePoint | null
+  probeB: ProbePoint | null
+}
+
+export function defaultMeasureState(): MeasureState {
+  return { probeA: null, probeB: null }
+}
 
 export interface ViewportState {
   x: number
@@ -52,6 +65,7 @@ export interface CircuitDocument {
   mode: AppMode
   buildProgress: ModeProgress
   troubleshootProgress: ModeProgress
+  measureState?: MeasureState
 }
 
 export interface SessionState {
@@ -61,6 +75,7 @@ export interface SessionState {
   mode: AppMode
   buildProgress: ModeProgress
   troubleshootProgress: ModeProgress
+  measureState: MeasureState
   savedFingerprint: string | null
   updatedAt: string
 }
@@ -84,6 +99,7 @@ export function defaultSession(): SessionState {
     mode: 'design',
     buildProgress: emptyModeProgress(DEFAULT_BUILD_CHECKS),
     troubleshootProgress: emptyModeProgress(DEFAULT_TROUBLESHOOT_CHECKS),
+    measureState: defaultMeasureState(),
     savedFingerprint: null,
     updatedAt: new Date().toISOString(),
   }

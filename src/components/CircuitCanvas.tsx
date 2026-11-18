@@ -12,20 +12,22 @@ import {
   type Edge,
   type Node,
   type OnConnect,
+  type OnSelectionChangeParams,
   type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useRef } from 'react'
 import { PALETTE_DRAG_TYPE } from '../types/circuit'
+import type { AppMode, ProbePoint } from '../store/types'
 import type { ViewportState } from '../store/types'
 import { getNodeSeq, nextNodeId, syncNodeSeqFromNodes } from '../utils/nodeIds'
 import {
-  PlaceholderNode,
+  CircuitPartNode,
   type PlaceholderNodeData,
-} from './nodes/PlaceholderNode'
+} from './nodes/CircuitPartNode'
 import type { PaletteItem } from './ComponentPalette'
 
-const nodeTypes = { placeholder: PlaceholderNode }
+const nodeTypes = { placeholder: CircuitPartNode, circuitPart: CircuitPartNode }
 
 function itemToNode(
   item: PaletteItem,
@@ -33,7 +35,7 @@ function itemToNode(
 ): Node<PlaceholderNodeData> {
   return {
     id: nextNodeId(),
-    type: 'placeholder',
+    type: 'circuitPart',
     position,
     data: {
       kind: item.kind,
@@ -44,9 +46,12 @@ function itemToNode(
 }
 
 type CircuitCanvasInnerProps = {
+  appMode: AppMode
   initialNodes: Node<PlaceholderNodeData>[]
   initialEdges: Edge[]
   viewport: ViewportState
+  probeA: ProbePoint | null
+  probeB: ProbePoint | null
   onGraphChange: (graph: {
     nodes: Node<PlaceholderNodeData>[]
     edges: Edge[]
@@ -54,14 +59,21 @@ type CircuitCanvasInnerProps = {
     nodeSeq: number
   }) => void
   onRegisterAdd: (fn: (item: PaletteItem) => void) => void
+  onSelectionChange: (ids: string[]) => void
+  onProbePick: (nodeId: string) => void
 }
 
 function CircuitCanvasInner({
+  appMode,
   initialNodes,
   initialEdges,
   viewport,
+  probeA,
+  probeB,
   onGraphChange,
   onRegisterAdd,
+  onSelectionChange,
+  onProbePick,
 }: CircuitCanvasInnerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<PlaceholderNodeData>>(
@@ -75,7 +87,6 @@ function CircuitCanvasInner({
     syncNodeSeqFromNodes(initialNodes)
     setViewport(viewport)
     viewportRef.current = viewport
-    // Only on mount — graphKey remounts when loading a different design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -98,6 +109,23 @@ function CircuitCanvasInner({
   useEffect(() => {
     emitGraph(nodes, edges, viewportRef.current)
   }, [nodes, edges, emitGraph])
+
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          probeMark:
+            probeA?.nodeId === n.id
+              ? 'A'
+              : probeB?.nodeId === n.id
+                ? 'B'
+                : undefined,
+        },
+      })),
+    )
+  }, [probeA, probeB, setNodes])
 
   useEffect(() => {
     onRegisterAdd((item) => {
@@ -144,10 +172,26 @@ function CircuitCanvasInner({
     [emitGraph, nodes, edges],
   )
 
+  const onNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (appMode !== 'measure') return
+      onProbePick(node.id)
+    },
+    [appMode, onProbePick],
+  )
+
+  const handleSelectionChange = useCallback(
+    (params: OnSelectionChangeParams) => {
+      const ids = (params.nodes ?? []).map((n) => n.id)
+      onSelectionChange(ids)
+    },
+    [onSelectionChange],
+  )
+
   return (
     <div
       ref={wrapperRef}
-      className="canvas"
+      className={`canvas${appMode === 'measure' ? ' canvas--measure' : ''}`}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -158,6 +202,8 @@ function CircuitCanvasInner({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
+        onNodeClick={onNodeClick}
+        onSelectionChange={handleSelectionChange}
         nodeTypes={nodeTypes}
         defaultViewport={viewport}
         snapToGrid
@@ -165,6 +211,8 @@ function CircuitCanvasInner({
         connectionLineStyle={{ stroke: '#5b9fd4', strokeWidth: 2 }}
         defaultEdgeOptions={{ type: 'smoothstep', animated: false }}
         proOptions={{ hideAttribution: true }}
+        selectionOnDrag={appMode === 'measure'}
+        panOnDrag={appMode !== 'measure'}
       >
         <Background gap={16} color="#2a3544" />
         <Controls showInteractive={false} />
@@ -174,6 +222,11 @@ function CircuitCanvasInner({
           className="canvas__minimap"
         />
       </ReactFlow>
+      {appMode === 'measure' ? (
+        <p className="canvas__measure-hint">
+          Drag to region-select · Click nodes for probes A then B
+        </p>
+      ) : null}
       {nodes.length === 0 ? (
         <p className="canvas__empty">
           Drop a resistor here or use the palette to start wiring.

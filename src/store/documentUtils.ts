@@ -2,11 +2,13 @@ import {
   DEFAULT_BUILD_CHECKS,
   DEFAULT_TROUBLESHOOT_CHECKS,
   defaultGraph,
+  defaultMeasureState,
   defaultSession,
   emptyModeProgress,
   type AppMode,
   type CircuitDocument,
   type GraphSnapshot,
+  type MeasureState,
   type ModeProgress,
   type SessionState,
 } from './types'
@@ -16,11 +18,19 @@ export function fingerprint(
   mode: AppMode,
   buildProgress: ModeProgress,
   troubleshootProgress: ModeProgress,
+  measureState: MeasureState,
 ): string {
-  return JSON.stringify({ graph, mode, buildProgress, troubleshootProgress })
+  return JSON.stringify({
+    graph,
+    mode,
+    buildProgress,
+    troubleshootProgress,
+    measureState,
+  })
 }
 
 export function sessionFromDocument(doc: CircuitDocument): SessionState {
+  const measureState = doc.measureState ?? defaultMeasureState()
   return {
     documentId: doc.id,
     documentName: doc.name,
@@ -28,11 +38,13 @@ export function sessionFromDocument(doc: CircuitDocument): SessionState {
     mode: doc.mode,
     buildProgress: doc.buildProgress,
     troubleshootProgress: doc.troubleshootProgress,
+    measureState,
     savedFingerprint: fingerprint(
       doc.graph,
       doc.mode,
       doc.buildProgress,
       doc.troubleshootProgress,
+      measureState,
     ),
     updatedAt: new Date().toISOString(),
   }
@@ -53,6 +65,7 @@ export function documentFromSession(
     mode: session.mode,
     buildProgress: session.buildProgress,
     troubleshootProgress: session.troubleshootProgress,
+    measureState: session.measureState,
   }
 }
 
@@ -65,6 +78,7 @@ export function freshSession(name: string | null = null): SessionState {
       'design',
       emptyModeProgress(DEFAULT_BUILD_CHECKS),
       emptyModeProgress(DEFAULT_TROUBLESHOOT_CHECKS),
+      defaultMeasureState(),
     ),
   }
 }

@@ -246,6 +246,235 @@
   font-weight: 600;
 }
 
+.circuit-node__value-input {
+  margin-top: 0.25rem;
+  width: 100%;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.circuit-node--probe-a {
+  box-shadow: 0 0 0 2px #5b9fd4;
+}
+
+.circuit-node--probe-b {
+  box-shadow: 0 0 0 2px #e8a838;
+}
+
+.circuit-node__probe-tag {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.45rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0a0e12;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.canvas--measure .react-flow__pane {
+  cursor: crosshair;
+}
+
+.canvas__measure-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  background: rgb(15 20 25 / 0.85);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.measure-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  min-width: 220px;
+  max-width: 300px;
+}
+
+.measure-panel__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.measure-panel__hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.measure-panel__probes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.measure-panel__probe {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-right: 0.35rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+}
+
+.measure-panel__probe--a {
+  background: #5b9fd4;
+  color: #0a0e12;
+}
+
+.measure-panel__probe--b {
+  background: #e8a838;
+  color: #0a0e12;
+}
+
+.measure-panel__clear {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.measure-panel__results {
+  padding: 0.5rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.8rem;
+}
+
+.measure-panel__results h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.conf--exact {
+  color: #6fcf97;
+}
+
+.conf--approximate {
+  color: #e8a838;
+}
+
+.conf--unsupported {
+  color: #eb5757;
+}
+
+.measure-panel__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.measure-panel__tool-tab {
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.measure-panel__tool-tab--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgb(91 159 212 / 0.12);
+}
+
+.tool-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.25rem;
+}
+
+.tool-panel__title {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.tool-panel__hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.tool-panel__result {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.tool-panel__apply {
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgb(91 159 212 / 0.18);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.tool-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.tool-field__label em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.tool-field__num {
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.circuit-node {
+  position: relative;
+}
+
 .react-flow__controls button {
   background: var(--surface);
   border-color: var(--border);
