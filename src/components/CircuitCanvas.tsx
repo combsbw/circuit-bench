@@ -7,31 +7,35 @@ import {
   addEdge,
   useEdgesState,
   useNodesState,
+  useOnSelectionChange,
   useReactFlow,
   type Connection,
   type Edge,
   type Node,
   type OnConnect,
-  type OnSelectionChangeParams,
   type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useRef } from 'react'
+import { useGraphHistory } from '../hooks/useGraphHistory'
 import { PALETTE_DRAG_TYPE } from '../types/circuit'
 import type { AppMode, ProbePoint } from '../store/types'
 import type { ViewportState } from '../store/types'
+import { connectedHandlesForNode } from '../utils/connectedHandles'
 import { getNodeSeq, nextNodeId, syncNodeSeqFromNodes } from '../utils/nodeIds'
 import {
   CircuitPartNode,
   type PlaceholderNodeData,
 } from './nodes/CircuitPartNode'
 import type { PaletteItem } from './ComponentPalette'
+import type { InspectorPatch } from './InspectorDrawer'
 
 const nodeTypes = { placeholder: CircuitPartNode, circuitPart: CircuitPartNode }
 
 function itemToNode(
   item: PaletteItem,
   position: { x: number; y: number },
+  buildMode: boolean,
 ): Node<PlaceholderNodeData> {
   return {
     id: nextNodeId(),
@@ -41,6 +45,10 @@ function itemToNode(
       kind: item.kind,
       label: item.label,
       value: item.defaultValue,
+      catalogId: item.catalogId,
+      partNumber: item.partNumber,
+      color: item.color,
+      buildMode,
     },
   }
 }
@@ -59,8 +67,11 @@ type CircuitCanvasInnerProps = {
     nodeSeq: number
   }) => void
   onRegisterAdd: (fn: (item: PaletteItem) => void) => void
+  onRegisterPatch: (fn: (nodeId: string, patch: InspectorPatch) => void) => void
   onSelectionChange: (ids: string[]) => void
   onProbePick: (nodeId: string) => void
+  onWireAdded?: () => void
+  onCatalogPlaced?: (catalogId: string) => void
 }
 
 function CircuitCanvasInner({
@@ -72,16 +83,29 @@ function CircuitCanvasInner({
   probeB,
   onGraphChange,
   onRegisterAdd,
+  onRegisterPatch,
   onSelectionChange,
   onProbePick,
+  onWireAdded,
+  onCatalogPlaced,
 }: CircuitCanvasInnerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<PlaceholderNodeData>>(
     initialNodes,
   )
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
-  const { screenToFlowPosition, setViewport } = useReactFlow()
+  const { screenToFlowPosition, setViewport, getNodes, getEdges } = useReactFlow()
   const viewportRef = useRef(viewport)
+  const { commit, undo, redo, canUndo, canRedo } = useGraphHistory()
+  const edgeCountRef = useRef(initialEdges.length)
+
+  const snapshot = useCallback(
+    () => ({
+      nodes: structuredClone(getNodes() as Node<PlaceholderNodeData>[]),
+      edges: structuredClone(getEdges()),
+    }),
+    [getNodes, getEdges],
+  )
 
   useEffect(() => {
     syncNodeSeqFromNodes(initialNodes)
@@ -107,6 +131,28 @@ function CircuitCanvasInner({
   )
 
   useEffect(() => {
+    const build = appMode === 'build'
+    setNodes((nds) =>
+      nds.map((n) => {
+        const connected = build ? connectedHandlesForNode(n.id, edges) : undefined
+        const prev = n.data.connectedHandles
+        const sameHandles =
+          JSON.stringify(prev ?? []) === JSON.stringify(connected ?? [])
+        if (n.data.buildMode === build && sameHandles) return n
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            buildMode: build,
+            connectedHandles: build ? connected : undefined,
+          },
+        }
+      }),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edges, appMode])
+
+  useEffect(() => {
     emitGraph(nodes, edges, viewportRef.current)
   }, [nodes, edges, emitGraph])
 
@@ -127,6 +173,16 @@ function CircuitCanvasInner({
     )
   }, [probeA, probeB, setNodes])
 
+  const placeItem = useCallback(
+    (item: PaletteItem, position: { x: number; y: number }) => {
+      commit(snapshot())
+      const node = itemToNode(item, position, appMode === 'build')
+      setNodes((nds) => nds.concat(node))
+      if (item.catalogId) onCatalogPlaced?.(item.catalogId)
+    },
+    [appMode, commit, onCatalogPlaced, setNodes, snapshot],
+  )
+
   useEffect(() => {
     onRegisterAdd((item) => {
       const el = wrapperRef.current
@@ -136,16 +192,86 @@ function CircuitCanvasInner({
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2,
       })
-      setNodes((nds) => nds.concat(itemToNode(item, position)))
+      placeItem(item, position)
     })
-  }, [onRegisterAdd, screenToFlowPosition, setNodes])
+  }, [onRegisterAdd, placeItem, screenToFlowPosition])
+
+  useEffect(() => {
+    onRegisterPatch((nodeId, patch) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n,
+        ),
+      )
+    })
+  }, [onRegisterPatch, setNodes])
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge({ ...connection, type: 'smoothstep' }, eds))
+      commit(snapshot())
+      setEdges((eds) => {
+        const next = addEdge({ ...connection, type: 'smoothstep' }, eds)
+        if (next.length > edgeCountRef.current) onWireAdded?.()
+        edgeCountRef.current = next.length
+        return next
+      })
     },
-    [setEdges],
+    [commit, onWireAdded, setEdges, snapshot],
   )
+
+  const deleteSelection = useCallback(() => {
+    if (appMode === 'measure') return
+    const selectedNodes = getNodes().filter((n) => n.selected)
+    const selectedEdges = getEdges().filter((e) => e.selected)
+    if (selectedNodes.length === 0 && selectedEdges.length === 0) return
+    commit(snapshot())
+    const removeIds = new Set(selectedNodes.map((n) => n.id))
+    setNodes((nds) => nds.filter((n) => !removeIds.has(n.id)))
+    setEdges((eds) =>
+      eds.filter(
+        (e) =>
+          !e.selected &&
+          !removeIds.has(e.source) &&
+          !removeIds.has(e.target),
+      ),
+    )
+  }, [appMode, commit, getEdges, getNodes, setEdges, setNodes, snapshot])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelection()
+        return
+      }
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        const current = snapshot()
+        const restored = e.shiftKey ? redo(current) : undo(current)
+        if (restored) {
+          setNodes(restored.nodes)
+          setEdges(restored.edges)
+          edgeCountRef.current = restored.edges.length
+        }
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        const current = snapshot()
+        const restored = redo(current)
+        if (restored) {
+          setNodes(restored.nodes)
+          setEdges(restored.edges)
+          edgeCountRef.current = restored.edges.length
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [deleteSelection, redo, setEdges, setNodes, snapshot, undo])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -159,9 +285,9 @@ function CircuitCanvasInner({
       if (!raw) return
       const item = JSON.parse(raw) as PaletteItem
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-      setNodes((nds) => nds.concat(itemToNode(item, position)))
+      placeItem(item, position)
     },
-    [screenToFlowPosition, setNodes],
+    [placeItem, screenToFlowPosition],
   )
 
   const onMoveEnd = useCallback(
@@ -180,13 +306,17 @@ function CircuitCanvasInner({
     [appMode, onProbePick],
   )
 
-  const handleSelectionChange = useCallback(
-    (params: OnSelectionChangeParams) => {
-      const ids = (params.nodes ?? []).map((n) => n.id)
-      onSelectionChange(ids)
+  const onNodeDragStop = useCallback(() => {
+    commit(snapshot())
+  }, [commit, snapshot])
+
+  useOnSelectionChange({
+    onChange: ({ nodes: sel }) => {
+      onSelectionChange(sel.map((n) => n.id))
     },
-    [onSelectionChange],
-  )
+  })
+
+  const designSelect = appMode === 'design' || appMode === 'build'
 
   return (
     <div
@@ -195,6 +325,43 @@ function CircuitCanvasInner({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
+      <div className="canvas__edit-bar" aria-live="polite">
+        <span className="canvas__edit-hint">
+          {designSelect
+            ? 'Shift+drag to multi-select · Del removes · ⌘/Ctrl+Z undo'
+            : null}
+        </span>
+        {designSelect ? (
+          <span className="canvas__history">
+            <button
+              type="button"
+              disabled={!canUndo}
+              onClick={() => {
+                const restored = undo(snapshot())
+                if (restored) {
+                  setNodes(restored.nodes)
+                  setEdges(restored.edges)
+                }
+              }}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              disabled={!canRedo}
+              onClick={() => {
+                const restored = redo(snapshot())
+                if (restored) {
+                  setNodes(restored.nodes)
+                  setEdges(restored.edges)
+                }
+              }}
+            >
+              Redo
+            </button>
+          </span>
+        ) : null}
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -203,7 +370,7 @@ function CircuitCanvasInner({
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
         onNodeClick={onNodeClick}
-        onSelectionChange={handleSelectionChange}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         defaultViewport={viewport}
         snapToGrid
@@ -212,7 +379,15 @@ function CircuitCanvasInner({
         defaultEdgeOptions={{ type: 'smoothstep', animated: false }}
         proOptions={{ hideAttribution: true }}
         selectionOnDrag={appMode === 'measure'}
+        selectionKeyCode={appMode === 'measure' ? null : 'Shift'}
+        multiSelectionKeyCode="Shift"
         panOnDrag={appMode !== 'measure'}
+        nodesDraggable={appMode !== 'measure'}
+        nodesConnectable={appMode === 'design' || appMode === 'build'}
+        elementsSelectable={appMode !== 'measure'}
+        edgesFocusable
+        edgesReconnectable={false}
+        deleteKeyCode={null}
       >
         <Background gap={16} color="#2a3544" />
         <Controls showInteractive={false} />

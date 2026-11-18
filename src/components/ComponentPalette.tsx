@@ -1,24 +1,26 @@
+import { findCatalogEntry, PALETTE_SECTIONS } from '../catalog/parts'
 import { PALETTE_DRAG_TYPE, type PartKind } from '../types/circuit'
 
 export type PaletteItem = {
   kind: PartKind
   label: string
-  symbol: string
   defaultValue?: string
+  catalogId?: string
+  partNumber?: string
+  color?: string
 }
 
-const ITEMS: PaletteItem[] = [
-  { kind: 'resistor', label: 'Resistor', symbol: 'R', defaultValue: '10kΩ' },
-  { kind: 'capacitor', label: 'Capacitor', symbol: 'C', defaultValue: '100nF' },
-  { kind: 'inductor', label: 'Inductor', symbol: 'L', defaultValue: '10mH' },
-  { kind: 'ground', label: 'Ground', symbol: '⏚' },
-  {
-    kind: 'voltage_source',
-    label: 'DC source',
-    symbol: 'V',
-    defaultValue: '5V',
-  },
-]
+function sectionItemToPaletteItem(item: (typeof PALETTE_SECTIONS)[0]['items'][0]): PaletteItem {
+  const catalog = item.catalogId ? findCatalogEntry(item.catalogId) : undefined
+  return {
+    kind: item.kind,
+    label: item.label,
+    defaultValue: item.defaultValue ?? catalog?.defaultValue,
+    catalogId: item.catalogId ?? catalog?.id,
+    partNumber: catalog?.mpn,
+    color: item.color,
+  }
+}
 
 type ComponentPaletteProps = {
   onAddPart: (item: PaletteItem) => void
@@ -29,32 +31,40 @@ export function ComponentPalette({ onAddPart }: ComponentPaletteProps) {
     <aside className="palette" aria-label="Component library">
       <h2 className="palette__heading">Components</h2>
       <p className="palette__hint">Drag onto canvas or tap to place</p>
-      <ul className="palette__list">
-        {ITEMS.map((item) => (
-          <li key={item.kind}>
-            <button
-              type="button"
-              className="palette__item"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData(
-                  PALETTE_DRAG_TYPE,
-                  JSON.stringify(item),
-                )
-                e.dataTransfer.effectAllowed = 'move'
-              }}
-              onClick={() => onAddPart(item)}
-            >
-              <span className="palette__symbol" aria-hidden>
-                {item.symbol}
-              </span>
-              <span className="palette__name">{item.label}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {PALETTE_SECTIONS.map((section) => (
+        <section key={section.id} className="palette__section">
+          <h3 className="palette__section-title">{section.title}</h3>
+          <ul className="palette__list">
+            {section.items.map((item) => {
+              const paletteItem = sectionItemToPaletteItem(item)
+              return (
+                <li key={`${section.id}-${item.label}-${item.catalogId ?? ''}`}>
+                  <button
+                    type="button"
+                    className="palette__item"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        PALETTE_DRAG_TYPE,
+                        JSON.stringify(paletteItem),
+                      )
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onClick={() => onAddPart(paletteItem)}
+                  >
+                    <span className="palette__symbol" aria-hidden>
+                      {item.kind.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="palette__name">{item.label}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
       <p className="palette__footer">
-        Op-amps, MOSFETs, and catalog parts arrive in later phases.
+        Select a part on canvas to edit values and assign catalog MPNs.
       </p>
     </aside>
   )
