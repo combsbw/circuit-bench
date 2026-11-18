@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircuitCanvas } from './components/CircuitCanvas'
 import { ComponentPalette, type PaletteItem } from './components/ComponentPalette'
+import {
+  InspectorDrawer,
+  type InspectorPatch,
+} from './components/InspectorDrawer'
+import { PinoutPanel } from './components/PinoutPanel'
 import { DocumentMenu } from './components/DocumentMenu'
 import { MeasurePanel } from './components/MeasurePanel'
 import { ModePanel } from './components/ModePanel'
@@ -41,6 +46,9 @@ function isDirty(session: SessionState): boolean {
 
 function App() {
   const addPartRef = useRef<((item: PaletteItem) => void) | null>(null)
+  const patchNodeRef = useRef<
+    ((nodeId: string, patch: InspectorPatch) => void) | null
+  >(null)
   const [session, setSession] = useState<SessionState>(() => freshSession())
   const [graphKey, setGraphKey] = useState('initial')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -50,6 +58,8 @@ function App() {
   const [saving, setSaving] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
+  const [pinoutCatalogId, setPinoutCatalogId] = useState<string | null>(null)
+  const [inspectorOpen, setInspectorOpen] = useState(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { canInstall, showIosHint, install } = usePwaInstall()
 
@@ -95,6 +105,13 @@ function App() {
     addPartRef.current = fn
   }, [])
 
+  const handleRegisterPatch = useCallback(
+    (fn: (nodeId: string, patch: InspectorPatch) => void) => {
+      patchNodeRef.current = fn
+    },
+    [],
+  )
+
   const handleAddFromPalette = useCallback((item: PaletteItem) => {
     addPartRef.current?.(item)
   }, [])
@@ -119,6 +136,48 @@ function App() {
   const handleGraphChange = useCallback(
     (graph: SessionState['graph']) => {
       setSession((s) => ({ ...s, graph }))
+    },
+    [],
+  )
+
+  const handleWireAdded = useCallback(() => {
+    setSession((s) => ({
+      ...s,
+      buildProgress: {
+        ...s.buildProgress,
+        checks: { ...s.buildProgress.checks, wiring: true },
+      },
+    }))
+  }, [])
+
+  const handleCatalogPlaced = useCallback((catalogId: string) => {
+    setPinoutCatalogId(catalogId)
+  }, [])
+
+  const handleSelectionChange = useCallback((ids: string[]) => {
+    setSelectedNodeIds(ids)
+    if (ids.length > 0) setInspectorOpen(true)
+  }, [])
+
+  const selectedNode = useMemo(() => {
+    const id = selectedNodeIds[0]
+    if (!id) return null
+  const node = session.graph.nodes.find((n) => n.id === id)
+    return node ?? null
+  }, [selectedNodeIds, session.graph.nodes])
+
+  const handleInspectorPatch = useCallback(
+    (nodeId: string, patch: InspectorPatch) => {
+      patchNodeRef.current?.(nodeId, patch)
+      setSession((s) => ({
+        ...s,
+        graph: {
+          ...s.graph,
+          nodes: s.graph.nodes.map((n) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n,
+          ),
+        },
+      }))
     },
     [],
   )
@@ -302,19 +361,37 @@ function App() {
       />
       <main className="app__main">
         {sidePanel}
-        <CircuitCanvas
-          graphKey={graphKey}
-          appMode={session.mode}
-          initialNodes={session.graph.nodes}
-          initialEdges={session.graph.edges}
-          viewport={session.graph.viewport}
-          probeA={session.measureState.probeA}
-          probeB={session.measureState.probeB}
-          onGraphChange={handleGraphChange}
-          onRegisterAdd={handleRegisterAdd}
-          onSelectionChange={setSelectedNodeIds}
-          onProbePick={handleProbePick}
-        />
+        <div className="app__canvas-wrap">
+          <CircuitCanvas
+            graphKey={graphKey}
+            appMode={session.mode}
+            initialNodes={session.graph.nodes}
+            initialEdges={session.graph.edges}
+            viewport={session.graph.viewport}
+            probeA={session.measureState.probeA}
+            probeB={session.measureState.probeB}
+            onGraphChange={handleGraphChange}
+            onRegisterAdd={handleRegisterAdd}
+            onRegisterPatch={handleRegisterPatch}
+            onSelectionChange={handleSelectionChange}
+            onProbePick={handleProbePick}
+            onWireAdded={handleWireAdded}
+            onCatalogPlaced={handleCatalogPlaced}
+          />
+          {session.mode === 'design' || session.mode === 'build' ? (
+            <InspectorDrawer
+              open={inspectorOpen && selectedNodeIds.length > 0}
+              node={selectedNode}
+              onClose={() => setInspectorOpen(false)}
+              onPatch={handleInspectorPatch}
+              onOpenPinout={setPinoutCatalogId}
+            />
+          ) : null}
+          <PinoutPanel
+            catalogId={pinoutCatalogId}
+            onClose={() => setPinoutCatalogId(null)}
+          />
+        </div>
       </main>
       <DocumentMenu
         open={menuOpen}

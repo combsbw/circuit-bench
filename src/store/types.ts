@@ -29,6 +29,7 @@ export interface ModeProgress {
 
 export const DEFAULT_BUILD_CHECKS: Record<string, string> = {
   components: 'All components placed',
+  wiring: 'At least one wire placed',
   power: 'Power nets connected',
   ground: 'Ground reference complete',
 }
