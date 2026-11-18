@@ -2,17 +2,28 @@
 
 Circuit Bench does **not** run full SPICE. This pass adds **graph-aware** stubs and closed-form tools.
 
-## In-circuit
+## Measure mode (DMM strip)
 
-- **Probes A/B** on canvas nodes → equivalent **DC resistance** between electrical nets (resistors only; C/L open at DC).
+- **R** — Probes A/B on canvas nodes → equivalent **DC resistance** between electrical nets (resistors; C/L open at DC).
+- **V DC** — Probe A vs schematic **ground** (MNA when possible).
+- **C** — Probes A/B → equivalent **capacitance** between nets (series/parallel reduction on capacitor subgraph). Shows **L** hint when an inductive path is also reducible.
+
+Calculators (divider, RC/RL/RLC/notch) live under **calculator assist** — they prefill from selection but are not the DMM readout.
+
+## In-circuit pattern detection
+
 - **Multi-select / region drag** in Measure mode → pattern detection (divider, RC/RL, series RLC, twin-T notch heuristic).
 - Confidence labels: `exact`, `approximate`, `unsupported`.
 
-## DC resistance limits
+## DC limits
 
-- Resistive subgraph between probes; stamp + solve up to **24** resistors.
-- Bridges within that limit are supported; disjoint graphs return unsupported.
-- Voltage sources are not folded into full nodal solve yet — divider **voltage** uses a simple two-R + one-source template.
+- **Resistance:** resistive subgraph between probes; conductance solve up to **24** resistors. Bridges within that limit are supported.
+- **Voltage (MNA):** ideal voltage sources + resistors; up to **48** resistors and **8** sources on the conductive network tied to ground. Capacitors and inductors are **open** at DC (probes may read `approximate` when C/L are on the sheet).
+- C/L do not participate in the nodal voltage solve yet.
+
+## Troubleshoot mode
+
+- **Open nets** list: terminals with no wire (same rules as build-mode open-handle highlights). Tap a row to pan/zoom to that part.
 
 ## Tool panels
 
@@ -20,4 +31,4 @@ Sliders + numeric fields; **Apply to selection** when the active calculator matc
 
 ## Next
 
-Modified nodal DC (all sources), complex impedance AC sweep, Bode UI — see project `architecture.md` in the Agent Store.
+Complex impedance AC sweep, Bode UI, sparse MNA AC — see project `architecture.md` in the Agent Store.

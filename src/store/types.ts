@@ -7,13 +7,16 @@ export interface ProbePoint {
   nodeId: string
 }
 
+export type DmmTool = 'resistance' | 'dc_voltage' | 'capacitance'
+
 export interface MeasureState {
   probeA: ProbePoint | null
   probeB: ProbePoint | null
+  dmmTool: DmmTool
 }
 
 export function defaultMeasureState(): MeasureState {
-  return { probeA: null, probeB: null }
+  return { probeA: null, probeB: null, dmmTool: 'resistance' }
 }
 
 export interface ViewportState {

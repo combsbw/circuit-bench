@@ -72,6 +72,7 @@ type CircuitCanvasInnerProps = {
   onProbePick: (nodeId: string) => void
   onWireAdded?: () => void
   onCatalogPlaced?: (catalogId: string) => void
+  focusNodeId?: string | null
 }
 
 function CircuitCanvasInner({
@@ -88,13 +89,15 @@ function CircuitCanvasInner({
   onProbePick,
   onWireAdded,
   onCatalogPlaced,
+  focusNodeId,
 }: CircuitCanvasInnerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<PlaceholderNodeData>>(
     initialNodes,
   )
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
-  const { screenToFlowPosition, setViewport, getNodes, getEdges } = useReactFlow()
+  const { screenToFlowPosition, setViewport, getNodes, getEdges, setCenter } =
+    useReactFlow()
   const viewportRef = useRef(viewport)
   const { commit, undo, redo, canUndo, canRedo } = useGraphHistory()
   const edgeCountRef = useRef(initialEdges.length)
@@ -131,7 +134,7 @@ function CircuitCanvasInner({
   )
 
   useEffect(() => {
-    const build = appMode === 'build'
+    const build = appMode === 'build' || appMode === 'troubleshoot'
     setNodes((nds) =>
       nds.map((n) => {
         const connected = build ? connectedHandlesForNode(n.id, edges) : undefined
@@ -172,6 +175,20 @@ function CircuitCanvasInner({
       })),
     )
   }, [probeA, probeB, setNodes])
+
+  useEffect(() => {
+    if (!focusNodeId) return
+    const nodeId = focusNodeId.includes('#')
+      ? focusNodeId.split('#')[0]!
+      : focusNodeId
+    const node = getNodes().find((n) => n.id === nodeId)
+    if (!node) return
+    const w = node.measured?.width ?? 120
+    const h = node.measured?.height ?? 48
+    const cx = node.position.x + w / 2
+    const cy = node.position.y + h / 2
+    void setCenter(cx, cy, { zoom: 1.35, duration: 320 })
+  }, [focusNodeId, getNodes, setCenter])
 
   const placeItem = useCallback(
     (item: PaletteItem, position: { x: number; y: number }) => {
@@ -399,7 +416,7 @@ function CircuitCanvasInner({
       </ReactFlow>
       {appMode === 'measure' ? (
         <p className="canvas__measure-hint">
-          Drag to region-select · Click nodes for probes A then B
+          R/C: probes A then B · V DC: tap probe node · Drag to region-select
         </p>
       ) : null}
       {nodes.length === 0 ? (

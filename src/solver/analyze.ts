@@ -1,7 +1,9 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { PlaceholderNodeData } from '../components/nodes/CircuitPartNode'
-import { resistanceBetween, dividerVoltage, type Confidence } from './dc'
+import type { DmmTool } from '../store/types'
+import { resistanceBetween, voltageAtNet, type Confidence } from './dc'
 import { buildCircuitGraph, netForNodeHandle } from './graph'
+import { capacitanceBetween, inductanceBetween } from './lcr'
 import { detectPatterns, kindFromPattern, type DetectedPattern } from './patterns'
 import { insightFromPattern, type FilterInsight } from './filters'
 
@@ -15,6 +17,16 @@ export interface RegionAnalysis {
   filterInsights: FilterInsight[]
   resistance: { ohms: number | null; confidence: Confidence; detail: string } | null
   probeVoltage: { volts: number | null; confidence: Confidence; detail: string } | null
+  capacitance: {
+    farads: number | null
+    confidence: Confidence
+    detail: string
+  } | null
+  inductanceHint: {
+    henries: number | null
+    confidence: Confidence
+    detail: string
+  } | null
 }
 
 export function analyzeSelection(
@@ -23,6 +35,7 @@ export function analyzeSelection(
   selectedNodeIds: string[],
   probeA: AnalysisProbe | null,
   probeB: AnalysisProbe | null,
+  dmmTool: DmmTool = 'resistance',
 ): RegionAnalysis {
   const patterns = detectPatterns(nodes, edges, selectedNodeIds)
   const filterInsights = patterns
@@ -32,21 +45,48 @@ export function analyzeSelection(
   const graph = buildCircuitGraph(nodes, edges)
 
   let resistance: RegionAnalysis['resistance'] = null
-  if (probeA && probeB) {
-    const netA = netForNodeHandle(graph, nodes, edges, probeA.nodeId, 'out')
-    const netB = netForNodeHandle(graph, nodes, edges, probeB.nodeId, 'out')
-    if (netA && netB) {
-      resistance = resistanceBetween(graph, netA, netB)
+  let probeVoltage: RegionAnalysis['probeVoltage'] = null
+  let capacitance: RegionAnalysis['capacitance'] = null
+  let inductanceHint: RegionAnalysis['inductanceHint'] = null
+
+  const netA =
+    probeA && netForNodeHandle(graph, nodes, edges, probeA.nodeId, 'out')
+  const netB =
+    probeB && netForNodeHandle(graph, nodes, edges, probeB.nodeId, 'out')
+
+  if (dmmTool === 'resistance' && netA && netB) {
+    resistance = resistanceBetween(graph, netA, netB)
+  }
+
+  if (dmmTool === 'dc_voltage' && netA) {
+    probeVoltage = voltageAtNet(graph, netA)
+  }
+
+  if (dmmTool === 'capacitance' && netA && netB) {
+    const c = capacitanceBetween(graph, netA, netB)
+    capacitance = {
+      farads: c.value,
+      confidence: c.confidence,
+      detail: c.detail,
+    }
+    const l = inductanceBetween(graph, netA, netB)
+    if (l.value != null) {
+      inductanceHint = {
+        henries: l.value,
+        confidence: l.confidence,
+        detail: l.detail,
+      }
     }
   }
 
-  let probeVoltage: RegionAnalysis['probeVoltage'] = null
-  if (probeA) {
-    const tap = netForNodeHandle(graph, nodes, edges, probeA.nodeId, 'out')
-    if (tap) probeVoltage = dividerVoltage(graph, tap)
+  return {
+    patterns,
+    filterInsights,
+    resistance,
+    probeVoltage,
+    capacitance,
+    inductanceHint,
   }
-
-  return { patterns, filterInsights, resistance, probeVoltage }
 }
 
 export function summarizePatterns(patterns: DetectedPattern[]): string {
