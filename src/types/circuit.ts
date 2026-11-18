@@ -12,9 +12,20 @@ export type PartKind =
   | 'regulator'
   | 'gate_driver'
   | 'module'
+  | 'diode'
+  | 'led'
+  | 'zener'
+  | 'tvs'
+  | 'switch'
+  | 'fuse'
   | 'placeholder'
 
-export type PaletteCategory = 'passive' | 'sources' | 'semiconductors' | 'modules'
+export type PaletteCategory =
+  | 'passive'
+  | 'sources'
+  | 'semiconductors'
+  | 'diodes'
+  | 'modules'
 
 export interface PartAttributes {
   label: string
@@ -22,6 +33,8 @@ export interface PartAttributes {
   partNumber?: string
   catalogId?: string
   rotation?: number
+  /** LED tint (optional; value holds Vf / color text). */
+  color?: string
   probeMark?: 'A' | 'B'
   /** Handle ids with at least one edge (build-mode highlight helper). */
   connectedHandles?: string[]

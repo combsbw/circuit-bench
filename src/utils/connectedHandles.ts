@@ -20,6 +20,15 @@ export function expectedHandles(kind: PartKind): string[] {
     case 'regulator':
     case 'gate_driver':
       return ['in', 'out', 'gnd']
+    case 'diode':
+    case 'led':
+    case 'zener':
+    case 'tvs':
+      return ['anode', 'cathode']
+    case 'switch':
+      return ['common', 'throw']
+    case 'fuse':
+      return ['in', 'out']
     default:
       return ['in', 'out']
   }

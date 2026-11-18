@@ -7,6 +7,7 @@ export type PaletteItem = {
   defaultValue?: string
   catalogId?: string
   partNumber?: string
+  color?: string
 }
 
 function sectionItemToPaletteItem(item: (typeof PALETTE_SECTIONS)[0]['items'][0]): PaletteItem {
@@ -17,6 +18,7 @@ function sectionItemToPaletteItem(item: (typeof PALETTE_SECTIONS)[0]['items'][0]
     defaultValue: item.defaultValue ?? catalog?.defaultValue,
     catalogId: item.catalogId ?? catalog?.id,
     partNumber: catalog?.mpn,
+    color: item.color,
   }
 }
 
@@ -36,7 +38,7 @@ export function ComponentPalette({ onAddPart }: ComponentPaletteProps) {
             {section.items.map((item) => {
               const paletteItem = sectionItemToPaletteItem(item)
               return (
-                <li key={`${section.id}-${item.kind}-${item.catalogId ?? ''}`}>
+                <li key={`${section.id}-${item.label}-${item.catalogId ?? ''}`}>
                   <button
                     type="button"
                     className="palette__item"

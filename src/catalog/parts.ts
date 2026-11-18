@@ -15,7 +15,14 @@ export type CatalogEntry = {
   defaultValue?: string
   defaultLabel?: string
   pinout?: CatalogPin[]
+  searchAliases?: string[]
 }
+
+const TO220_GDS: CatalogPin[] = [
+  { number: 1, name: 'G', function: 'Gate' },
+  { number: 2, name: 'D', function: 'Drain' },
+  { number: 3, name: 'S', function: 'Source' },
+]
 
 export const CATALOG: CatalogEntry[] = [
   {
@@ -103,12 +110,111 @@ export const CATALOG: CatalogEntry[] = [
       { number: 3, name: 'D', function: 'Drain' },
     ],
   },
+  {
+    id: 'irlz44n',
+    mpn: 'IRLZ44N',
+    name: 'IRLZ44N logic-level N-MOSFET',
+    category: 'semiconductors',
+    kind: 'nmos',
+    defaultLabel: 'IRLZ44N',
+    pinout: TO220_GDS,
+  },
+  {
+    id: 'irfb4410',
+    mpn: 'IRFB4410',
+    name: 'IRFB4410 power N-MOSFET',
+    category: 'semiconductors',
+    kind: 'nmos',
+    defaultLabel: 'IRFB4410',
+    pinout: TO220_GDS,
+    searchAliases: ['irbf4410'],
+  },
+  {
+    id: '2n2222',
+    mpn: '2N2222',
+    name: '2N2222 NPN transistor',
+    category: 'semiconductors',
+    kind: 'npn',
+    defaultLabel: '2N2222',
+    pinout: [
+      { number: 1, name: 'E', function: 'Emitter' },
+      { number: 2, name: 'B', function: 'Base' },
+      { number: 3, name: 'C', function: 'Collector' },
+    ],
+  },
+  {
+    id: '1n4007',
+    mpn: '1N4007',
+    name: '1N4007 rectifier diode',
+    category: 'diodes',
+    kind: 'diode',
+    defaultValue: '1A / 1000V',
+    defaultLabel: '1N4007',
+    pinout: [
+      { number: 1, name: 'A', function: 'Anode' },
+      { number: 2, name: 'K', function: 'Cathode' },
+    ],
+  },
+  {
+    id: '1n4148',
+    mpn: '1N4148',
+    name: '1N4148 switching diode',
+    category: 'diodes',
+    kind: 'diode',
+    defaultLabel: '1N4148',
+    pinout: [
+      { number: 1, name: 'A', function: 'Anode' },
+      { number: 2, name: 'K', function: 'Cathode' },
+    ],
+  },
+  {
+    id: 'led-generic',
+    mpn: 'LED',
+    name: 'Indicator LED',
+    category: 'diodes',
+    kind: 'led',
+    defaultValue: '2V red',
+    defaultLabel: 'LED',
+    pinout: [
+      { number: 1, name: 'A', function: 'Anode' },
+      { number: 2, name: 'K', function: 'Cathode' },
+    ],
+  },
+  {
+    id: 'zener-5v1',
+    mpn: '1N4733A',
+    name: '5.1 V Zener (1N4733A)',
+    category: 'diodes',
+    kind: 'zener',
+    defaultValue: '5.1V',
+    defaultLabel: 'Zener',
+    pinout: [
+      { number: 1, name: 'A', function: 'Anode' },
+      { number: 2, name: 'K', function: 'Cathode' },
+    ],
+  },
+  {
+    id: 'tvs-smbj12a',
+    mpn: 'SMBJ12A',
+    name: 'SMBJ12A TVS diode',
+    category: 'diodes',
+    kind: 'tvs',
+    defaultValue: '12V Vbr',
+    defaultLabel: 'TVS',
+    pinout: [
+      { number: 1, name: 'A', function: 'Anode' },
+      { number: 2, name: 'K', function: 'Cathode' },
+    ],
+  },
 ]
 
 export function findCatalogEntry(idOrMpn: string): CatalogEntry | undefined {
   const key = idOrMpn.toLowerCase()
   return CATALOG.find(
-    (e) => e.id === key || e.mpn.toLowerCase() === key,
+    (e) =>
+      e.id === key ||
+      e.mpn.toLowerCase() === key ||
+      e.searchAliases?.some((a) => a.toLowerCase() === key),
   )
 }
 
@@ -119,7 +225,8 @@ export function searchCatalog(query: string): CatalogEntry[] {
     (e) =>
       e.mpn.toLowerCase().includes(q) ||
       e.name.toLowerCase().includes(q) ||
-      e.id.includes(q),
+      e.id.includes(q) ||
+      e.searchAliases?.some((a) => a.includes(q)),
   )
 }
 
@@ -131,6 +238,7 @@ export const PALETTE_SECTIONS: {
     label: string
     defaultValue?: string
     catalogId?: string
+    color?: string
   }[]
 }[] = [
   {
@@ -140,6 +248,9 @@ export const PALETTE_SECTIONS: {
       { kind: 'resistor', label: 'Resistor', defaultValue: '10kΩ' },
       { kind: 'capacitor', label: 'Capacitor', defaultValue: '100nF' },
       { kind: 'inductor', label: 'Inductor', defaultValue: '10mH' },
+      { kind: 'inductor', label: 'Coil', defaultValue: '10mH' },
+      { kind: 'fuse', label: 'Fuse', defaultValue: '1A' },
+      { kind: 'switch', label: 'Switch (SPST)' },
     ],
   },
   {
@@ -155,11 +266,25 @@ export const PALETTE_SECTIONS: {
     title: 'Semiconductors',
     items: [
       { kind: 'op_amp', label: 'Op-amp', catalogId: 'tl072' },
-      { kind: 'npn', label: 'NPN BJT' },
+      { kind: 'npn', label: 'NPN BJT', catalogId: '2n2222' },
+      { kind: 'npn', label: 'NPN (generic)' },
       { kind: 'nmos', label: 'N-MOSFET', catalogId: '2n7002' },
+      { kind: 'nmos', label: 'IRLZ44N', catalogId: 'irlz44n' },
+      { kind: 'nmos', label: 'IRFB4410', catalogId: 'irfb4410' },
       { kind: 'pmos', label: 'P-MOSFET' },
       { kind: 'regulator', label: 'Linear reg', catalogId: 'lm7812' },
       { kind: 'gate_driver', label: 'Gate driver', catalogId: 'tc4420' },
+    ],
+  },
+  {
+    id: 'diodes',
+    title: 'Diodes',
+    items: [
+      { kind: 'diode', label: 'Rectifier', catalogId: '1n4007' },
+      { kind: 'diode', label: 'Switching diode', catalogId: '1n4148' },
+      { kind: 'led', label: 'LED', catalogId: 'led-generic', defaultValue: '2V red', color: 'red' },
+      { kind: 'zener', label: 'Zener', catalogId: 'zener-5v1', defaultValue: '5.1V' },
+      { kind: 'tvs', label: 'TVS', catalogId: 'tvs-smbj12a', defaultValue: '12V Vbr' },
     ],
   },
   {

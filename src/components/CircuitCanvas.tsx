@@ -47,6 +47,7 @@ function itemToNode(
       value: item.defaultValue,
       catalogId: item.catalogId,
       partNumber: item.partNumber,
+      color: item.color,
       buildMode,
     },
   }

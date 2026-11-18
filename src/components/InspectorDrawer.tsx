@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Node } from '@xyflow/react'
 import { CATALOG, findCatalogEntry, searchCatalog } from '../catalog/parts'
+import { inspectorValueHint } from '../utils/partInspector'
 import type { PlaceholderNodeData } from './nodes/CircuitPartNode'
 import type { PartKind } from '../types/circuit'
 
@@ -32,6 +33,7 @@ export function InspectorDrawer({
 
   const data = node.data
   const rotation = data.rotation ?? 0
+  const valueHint = inspectorValueHint(data.kind)
 
   const applyCatalog = (catalogId: string) => {
     const entry = findCatalogEntry(catalogId)
@@ -42,6 +44,9 @@ export function InspectorDrawer({
       partNumber: entry.mpn,
       label: entry.defaultLabel ?? entry.name,
       value: entry.defaultValue ?? data.value,
+      ...(entry.kind === 'led' && entry.id === 'led-generic'
+        ? { color: data.color ?? 'red' }
+        : {}),
     })
     if (entry.pinout?.length) onOpenPinout(entry.id)
   }
@@ -62,13 +67,23 @@ export function InspectorDrawer({
           onChange={(e) => onPatch(node.id, { label: e.target.value })}
         />
       </label>
-      {data.kind !== 'ground' ? (
+      {valueHint ? (
         <label className="inspector__field">
-          <span>Value</span>
+          <span>{valueHint.label}</span>
           <input
             value={data.value ?? ''}
             onChange={(e) => onPatch(node.id, { value: e.target.value })}
-            placeholder="e.g. 10kΩ"
+            placeholder={valueHint.placeholder}
+          />
+        </label>
+      ) : null}
+      {valueHint?.showColor ? (
+        <label className="inspector__field">
+          <span>LED color</span>
+          <input
+            value={data.color ?? ''}
+            onChange={(e) => onPatch(node.id, { color: e.target.value })}
+            placeholder="e.g. red"
           />
         </label>
       ) : null}
@@ -86,7 +101,7 @@ export function InspectorDrawer({
           className="inspector__search"
           value={catalogQuery}
           onChange={(e) => setCatalogQuery(e.target.value)}
-          placeholder="Search parts…"
+          placeholder="Search parts… (try irbf4410)"
         />
         <ul className="inspector__catalog">
           {matches.map((entry) => (

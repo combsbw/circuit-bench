@@ -2,6 +2,7 @@ import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import { useCallback } from 'react'
 import { PartSymbol } from '../../symbols/PartSymbols'
 import { expectedHandles } from '../../utils/connectedHandles'
+import { showsInlineValue } from '../../utils/partInspector'
 import type { PartAttributes, PartKind } from '../../types/circuit'
 
 export type PlaceholderNodeData = PartAttributes & {
@@ -60,6 +61,24 @@ function portsForKind(kind: PartKind): PortDef[] {
         { id: 'out', type: 'source', position: Position.Right },
         { id: 'gnd', type: 'target', position: Position.Bottom },
       ]
+    case 'diode':
+    case 'led':
+    case 'zener':
+    case 'tvs':
+      return [
+        { id: 'anode', type: 'target', position: Position.Left },
+        { id: 'cathode', type: 'source', position: Position.Right },
+      ]
+    case 'switch':
+      return [
+        { id: 'common', type: 'target', position: Position.Left },
+        { id: 'throw', type: 'source', position: Position.Right },
+      ]
+    case 'fuse':
+      return [
+        { id: 'in', type: 'target', position: Position.Left },
+        { id: 'out', type: 'source', position: Position.Right },
+      ]
     default:
       return [
         { id: 'in', type: 'target', position: Position.Left },
@@ -114,7 +133,12 @@ export function CircuitPartNode({ id, data, selected }: NodeProps) {
       {d.partNumber ? (
         <p className="circuit-node__mpn">{d.partNumber}</p>
       ) : null}
-      {kind !== 'ground' && kind !== 'module' && kind !== 'gate_driver' ? (
+      {d.color ? (
+        <p className="circuit-node__color" style={{ color: d.color }}>
+          {d.color}
+        </p>
+      ) : null}
+      {showsInlineValue(kind) ? (
         selected ? (
           <input
             className="circuit-node__value-input"

@@ -13,7 +13,7 @@ Passive and source nodes render IEEE-style SVG silhouettes (R, C, L, GND, DC sou
 
 ## Parts bank (RAM-4)
 
-`src/catalog/parts.ts` seeds ESP32-S3 Supermini, TC4420, TL072, LM7812, and 2N7002 with pinout tables. The palette is grouped into Passive, Sources, Semiconductors, and Modules. The inspector drawer edits label, value, MPN, catalog assignment, and rotation; catalog attributes persist in node `data` and in saved `CircuitDocument` JSON.
+`src/catalog/parts.ts` seeds modules (ESP32-S3 Supermini), drivers (TC4420), op-amps (TL072), regulators (LM7812), MOSFETs (2N7002, IRLZ44N, IRFB4410 — search alias `irbf4410`), BJT (2N2222), and diodes (1N4007, 1N4148, LED, Zener, TVS) with pinout tables. The palette is grouped into **Passive** (incl. Coil → inductor, fuse, SPST switch), **Sources**, **Semiconductors**, **Diodes**, and **Modules**. Per-kind inspector fields cover Vf/color (LED), Vz (Zener), Vbr (TVS), and fuse current rating.
 
 Placing a catalog module opens the pinout slide-over; it can be reopened from the inspector.
 

@@ -176,6 +176,124 @@ export function GateDriverSymbol({ className }: SymbolProps) {
   )
 }
 
+export function DiodeSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 48 24" width={48} height={24} aria-hidden>
+      <path d="M4 12 H18" stroke={stroke} strokeWidth={sw} />
+      <path d="M30 12 H44" stroke={stroke} strokeWidth={sw} />
+      <path
+        d="M18 6 L30 12 L18 18 Z"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <line x1="30" y1="6" x2="30" y2="18" stroke={stroke} strokeWidth={sw + 0.4} />
+    </svg>
+  )
+}
+
+export function LedSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 52 28" width={52} height={28} aria-hidden>
+      <path d="M4 14 H18" stroke={stroke} strokeWidth={sw} />
+      <path d="M30 14 H44" stroke={stroke} strokeWidth={sw} />
+      <path
+        d="M18 8 L30 14 L18 20 Z"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <line x1="30" y1="8" x2="30" y2="20" stroke={stroke} strokeWidth={sw + 0.4} />
+      <path
+        d="M32 4 L38 8 M32 6 L40 6 M32 8 L38 4"
+        stroke={stroke}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
+      <path
+        d="M38 16 L44 20 M38 18 L46 18 M38 20 L44 16"
+        stroke={stroke}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+export function ZenerSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 48 24" width={48} height={24} aria-hidden>
+      <path d="M4 12 H18" stroke={stroke} strokeWidth={sw} />
+      <path d="M30 12 H44" stroke={stroke} strokeWidth={sw} />
+      <path
+        d="M18 6 L30 12 L18 18 Z"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <path d="M26 6 L30 12 L26 18" stroke={stroke} strokeWidth={sw} fill="none" />
+    </svg>
+  )
+}
+
+export function TvsSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 52 24" width={52} height={24} aria-hidden>
+      <path d="M4 12 H14" stroke={stroke} strokeWidth={sw} />
+      <path d="M38 12 H48" stroke={stroke} strokeWidth={sw} />
+      <path
+        d="M14 6 L22 12 L14 18 Z"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+      />
+      <path
+        d="M38 6 L30 12 L38 18 Z"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+      />
+      <line x1="22" y1="6" x2="22" y2="18" stroke={stroke} strokeWidth={sw} />
+      <line x1="30" y1="6" x2="30" y2="18" stroke={stroke} strokeWidth={sw} />
+    </svg>
+  )
+}
+
+export function SwitchSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 52 28" width={52} height={28} aria-hidden>
+      <path d="M4 14 H16" stroke={stroke} strokeWidth={sw} />
+      <path d="M36 14 H48" stroke={stroke} strokeWidth={sw} />
+      <circle cx="16" cy="14" r="2.5" fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d="M18 14 L34 6" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+      <circle cx="36" cy="14" r="2.5" fill="none" stroke={stroke} strokeWidth={sw} />
+    </svg>
+  )
+}
+
+export function FuseSymbol({ className }: SymbolProps) {
+  return (
+    <svg className={className} viewBox="0 0 52 24" width={52} height={24} aria-hidden>
+      <path d="M4 12 H12" stroke={stroke} strokeWidth={sw} />
+      <path d="M40 12 H48" stroke={stroke} strokeWidth={sw} />
+      <rect
+        x="12"
+        y="7"
+        width="28"
+        height="10"
+        rx="2"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+      />
+      <path d="M16 12 H36" stroke={stroke} strokeWidth={1} opacity={0.65} strokeDasharray="3 2" />
+    </svg>
+  )
+}
+
 export function ModuleSymbol({ className }: SymbolProps) {
   return (
     <svg className={className} viewBox="0 0 56 40" width={56} height={40} aria-hidden>
@@ -207,6 +325,12 @@ const MAP: Record<PartKind, (p: SymbolProps) => ReactElement> = {
   regulator: RegulatorSymbol,
   gate_driver: GateDriverSymbol,
   module: ModuleSymbol,
+  diode: DiodeSymbol,
+  led: LedSymbol,
+  zener: ZenerSymbol,
+  tvs: TvsSymbol,
+  switch: SwitchSymbol,
+  fuse: FuseSymbol,
   placeholder: () => <span>?</span>,
 }
 
